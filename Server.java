@@ -1,5 +1,6 @@
 package test.demo3;
 
+import java.beans.DefaultPersistenceDelegate;
 import java.io.BufferedReader;
 
 import java.io.IOException;
@@ -8,12 +9,24 @@ import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.StringTokenizer;
 
-import org.omg.CORBA.PUBLIC_MEMBER;
+import com.sun.xml.internal.bind.v2.schemagen.xmlschema.List;
+
+import net.sf.json.JSONArray;
+import sun.security.x509.DeltaCRLIndicatorExtension;
+
+import java.util.Map.Entry;
+
+
+
+
 
 public class Server {
 	
@@ -35,11 +48,19 @@ public class Server {
 		
 	}
 	
+	//转化IP方法
+	public String transformIpAddr(String internetIp) {
+		
+		return internetIp.substring(1);
+		
+	}
+	
 	//Server构造方法
-	public Server(int port, int backlog, InetAddress bindAddr) throws IOException {
+	public Server(int port, int backlog, InetAddress bindAddr, String webserveraddr) throws IOException {
 		
 		clientManager = new ClientManager();
-		new SlaverThread();  //创建线程作为web服务器的客户端
+		new ConsoleThread();
+		new SlaverThread(webserveraddr);  //创建线程作为web服务器的客户端
 		
 		//创建server服务器
 		ServerSocket serverSocket = new ServerSocket(port, backlog, bindAddr);
@@ -49,12 +70,13 @@ public class Server {
 			//开始监听
 			Socket socket = serverSocket.accept();
 			String client = socket.getInetAddress().toString();
+			client = transformIpAddr(client);
 			
 			//如果client正在被管理则创建线程,否则拒绝连接
 			if (clientManager.isClientAdded(client))
 			{
 				//设置为online
-				clientManager.setClientOnline(client);
+				clientManager.setClientConnect(client, "online");
 				new MasterThread(socket);
 			}
 			else
@@ -98,88 +120,238 @@ public class Server {
 		}
 	}
 	
+	
+	//webserver命令处理类
+	public class WebserverCommand
+	{
+		private String commandLine = null;
+		
+		private static final String cmdSET = "set";
+		private static final String cmdADD = "add";
+		private static final String cmdQUERYSC = "sc";
+		private static final String objSocketServerName = "ss";
+		private static final String objSocketClientName = "sc";
+		
+		public WebserverCommand(String cmd) {
+			commandLine = cmd;
+		}
+		
+		public void setCommand(String line) {
+			commandLine = line;
+		}
+		
+		public void parse(Socket socket) {
+			String[] command = {"cmd", "object", "value"};
+			int i = 0;
+			StringTokenizer st = new StringTokenizer(commandLine, " "); 
+			
+	        while(st.hasMoreElements()) {  
+	        	command[i++] = st.nextElement().toString();
+	        	if (i >= 3)    break;  //只接受3个单词
+	        } 
+	        
+			switch (command[0])
+			{
+				case  cmdADD:
+					switch (command[1]) 
+					{
+						case objSocketClientName:
+							clientManager.addClient(command[2]);
+							break;
+
+						default:
+							break;
+					}
+					break;
+				
+				case cmdQUERYSC:
+					switch (command[1])
+					{
+						case "???":
+							//发送Clients状态
+							new TransToWebServerThread(socket, clientManager.toJsonString());
+							break;
+					}
+					break;
+			}
+		}
+	}
+	
+	public class ClientBean {
+		private String ip;
+		private String connect;
+		private String memory;
+		
+		
+		public String getIp() {
+			return ip;
+		}
+		public void setIp(String ip) {
+			this.ip = ip;
+		}
+		public String getConnect() {
+			return connect;
+		}
+		public void setConnect(String connect) {
+			this.connect = connect;
+		}
+		public String getMemory() {
+			return memory;
+		}
+		public void setMemory(String memory) {
+			this.memory = memory;
+		}
+	}
+	
 	//客户端管理类
 	private class ClientManager
 	{
-		final static int ONLINE = 1;
-		final static int OFFLINE = 1;
+		final static String ONLINE = "online";
+		final static String OFFLINE = "offline";
 		
-		private HashMap<String, Integer> Clients = new HashMap<String, Integer>(); 
+		public LinkedList<ClientBean> Clients = new LinkedList<ClientBean>();
 		
 		//判断客户端是否被管理
-		public synchronized boolean isClientAdded(String client)
+		public synchronized boolean isClientAdded(String newIP)
 		{
-			return Clients.containsKey(client);
+			//ip是否已存在
+			String addedIP;
+			
+			for(Iterator<ClientBean> iter = Clients.iterator(); iter.hasNext();)
+			{
+				addedIP = ((ClientBean)iter.next()).getIp();
+				
+				System.out.println(addedIP + "    vs   " + newIP);
+				if (newIP.equals(addedIP))
+				{
+					System.out.println("The ip <" + newIP + "> is exist!");
+					return true;
+				}
+			}
+			
+			return false;	
+		}
+		
+		//返回客户端在链表中的位置
+		private int getPosition(String clientIP) {
+			
+			int position = 0;
+			String addedIP;
+			
+			for(Iterator<ClientBean> iter = Clients.iterator(); iter.hasNext();)
+			{
+				addedIP = ((ClientBean)iter.next()).getIp();
+				if (addedIP.equals(clientIP))
+				{
+					System.out.println("The ip <" + clientIP + "> is exist!");
+					return position;
+				}
+				position++;
+			}
+			
+			return -1;
 		}
 		
 		//添加客户端,添加时设为OFFLINE,不能重复添加
-		public synchronized boolean addClient(String client)
+		public synchronized boolean addClient(String clientIP)
 		{
-			if (Clients.get(client) == null)
+			if (isClientAdded(clientIP))
 			{
-				Clients.put(client, OFFLINE);
-				return true;
+				return false;
 			}
 			else
 			{
-				System.out.println("the " + client + " is already added!");
-				return false;
+				ClientBean c = new ClientBean();
+				System.out.println("add client <" + clientIP + ">");
+				c.setIp(clientIP);
+				Clients.add(c);
+				return true;
 			}
 		}
 		
 		//删除客户端,仅不再管理客户端,连接可能仍然存在
-		public synchronized void removeClient(String client)
+		public synchronized void removeClient(String clientIP)
 		{
-			Clients.remove(client);
+			int position = getPosition(clientIP);
+			
+			if (position >= 0)
+			{
+				Clients.remove(position);
+			}
 		}
 		
-		//若客户端正在被管理,则设置其状态为ONLINE
-		public synchronized void setClientOnline(String client)
+		//若客户端正在被管理,则设置其状态
+		public synchronized void setClientConnect(String clientIP, String status)
 		{
-			if (Clients.containsKey(client))
+			int position = getPosition(clientIP);
+			
+			System.out.println("<"+clientIP+"> position: " + position);
+			
+			if (position >= 0)
 			{
-				//注意put既能修改也能添加,所以先判断key是否存在
-				Clients.put(client, ONLINE); 
+				ClientBean c = Clients.get(position);
+				
+				c.setConnect(status);
+				
+				Clients.set(position, c);
 			}
 		}	
 		
-		//若客户端正在被管理,则设置其状态为OFFLINE
-		public synchronized void setClientOffline(String client)
+		public synchronized String getConnectStatus(String clientIP)
 		{
-			if (Clients.containsKey(client))
-			{
-				//注意put既能修改也能添加,所以先判断key是否存在
-				Clients.put(client, OFFLINE); 
-			}
+			
+			return null;
 		}
 		
-		public synchronized boolean isOnline(String client)
+		public synchronized void print() 
 		{
-			if (Clients.get(client) == null)
+			ClientBean c;
+			
+			for(Iterator<ClientBean> iter = Clients.iterator(); iter.hasNext();)
 			{
-				return false;
+				c = (ClientBean)iter.next();
+				System.out.println("<"+c.getIp()+">    "+"con: "+c.getConnect()+"    mem: "+c.getMemory());
 			}
-			else
-			{
-				return true;
-			}
+			
+			System.out.println("Json String:");
+			System.out.println(toJsonString());
 		}
 		
-		public synchronized void print() {
-	        Iterator iter = Clients.entrySet().iterator(); 
-	        
-	        if(!iter.hasNext())
-	        {
-	        	System.out.println("No clients online");  
-	        }
-
-	        while (iter.hasNext()) {  
-	            Map.Entry entry = (Map.Entry)iter.next();  
-	            Object key = entry.getKey();  
-	            Object value = entry.getValue(); 
-	            
-	            System.out.println(key + "  :  " + (value.equals(1)?"online":"offline"));  
-	        }  
+		//转化为Json字符串
+		public String toJsonString() {
+			String jsonString;
+			
+			jsonString = JSONArray.fromObject(Clients).toString();
+			
+			return jsonString;
+		}
+	}
+	
+	//发送至webserver线程
+	public class TransToWebServerThread extends Thread
+	{
+		private Socket socket;
+		private String transBuf;
+		public TransToWebServerThread(Socket socket, String transBuf) {
+			super();
+			this.socket = socket;
+			this.transBuf = transBuf;
+			
+			start();
+		}
+		
+		public void run()
+		{
+			try {
+				System.out.println("Send \"" + transBuf + "\"");
+				PrintWriter printWriter = new PrintWriter(socket.getOutputStream(),true);
+				printWriter.println(transBuf);
+				
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				//e.printStackTrace();
+				System.out.println("Send \"" + transBuf + "\" fail!");
+			}
 		}
 	}
 	
@@ -196,8 +368,11 @@ public class Server {
 			bufferedReader = new BufferedReader(new InputStreamReader(connect.getInputStream()));	
 			printWriter = new PrintWriter(connect.getOutputStream(), true);
 			ClientName = connect.getInetAddress().toString();
+			ClientName = transformIpAddr(ClientName);
 			
 			System.out.println(ClientName + " connected!");
+			
+			clientManager.setClientConnect(ClientName, "online");
 			
 			start();
 		}
@@ -205,13 +380,14 @@ public class Server {
 		public void destroy() {
 			
 			//设置为offline
-			clientManager.setClientOffline(ClientName);
+			clientManager.setClientConnect(ClientName, "offline");
 			
 			printWriter.close();
 			
 			try {
 				bufferedReader.close();
 				connect.close();
+				
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				//e.printStackTrace();
@@ -239,9 +415,11 @@ public class Server {
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				//e.printStackTrace();
-				System.out.println("lose connect to <" + ClientName + "> !!!");
+				System.out.println("lose connect to client <" + ClientName + "> !!!");
 				destroy();
 			}
+			
+			System.out.println("Leave thread [" + getName() + "]...");
 		}
 	
 	}
@@ -249,13 +427,59 @@ public class Server {
 	//Slaver线程
 	class SlaverThread extends Thread
 	{
-		public void ClientThread() {
-			
+		private String WebServerAddr = null;
+		
+		public SlaverThread(String webserverip) {
+			WebServerAddr = webserverip;
 			start();
 		}
 		
 		public void run() {
 			
+			while (true) {
+				
+					try {
+						Socket socket = new Socket(WebServerAddr, 8887);
+						socket.setSoTimeout(2000);
+						
+						BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+						String result ="";
+						WebserverCommand command = new WebserverCommand(result);
+						while(true)
+						{
+							try {
+								result = bufferedReader.readLine();
+								System.out.println("WebServer say : " + result);
+								
+								command.setCommand(result);
+								command.parse(socket);
+							}  
+							catch (SocketTimeoutException e) {
+								// 连接超时
+								System.out.println("read form webserver <" + WebServerAddr + "> time out!");
+								
+								//发送clients状态
+								new TransToWebServerThread(socket, clientManager.toJsonString());
+							}
+							catch (IOException e) {
+								// TODO Auto-generated catch block
+								//e.printStackTrace();
+								System.out.println("IOException: read from webserver!");
+								break;
+							}
+							
+						}
+						
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						//e1.printStackTrace();
+						System.out.println("Cannot connect to <" + WebServerAddr + ">! ");
+						System.out.println("  1. The client is added into management ?");
+						System.out.println("  2. The the server ip is right?");
+						System.out.println("  3. The the server is online?");
+					}
+ 	
+			}
 		}
 	}
 
@@ -264,7 +488,7 @@ public class Server {
 		LocalhostAddr = getLocalhostAddr();
 		if (LocalhostAddr != null)
 		{
-			new Server(8888, 30, LocalhostAddr);        //作为socket服务器
+			new Server(8888, 30, LocalhostAddr, args[0]);        //作为socket服务器
 		}
 		
 		System.out.println("main() Exit!");

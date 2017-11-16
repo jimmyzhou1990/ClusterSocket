@@ -26,7 +26,7 @@ public class Client {
 			
 			try {
 				Socket socket = new Socket(args[0], 8888);
-				socket.setSoTimeout(60000);
+				//socket.setSoTimeout(60000);
 				
 				PrintWriter printWriter = new PrintWriter(socket.getOutputStream(),true);
 				BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
