@@ -176,30 +176,30 @@ public class Server {
 			}
 		}
 	}
-	
+	 
 	public class ClientBean {
-		private String ip;
-		private String connect;
-		private String memory;
 		
+		private String a_ip;
+		private String b_connect;
+		private String c_memory;
 		
 		public String getIp() {
-			return ip;
+			return a_ip;
 		}
 		public void setIp(String ip) {
-			this.ip = ip;
+			this.a_ip = ip;
 		}
 		public String getConnect() {
-			return connect;
+			return b_connect;
 		}
 		public void setConnect(String connect) {
-			this.connect = connect;
+			this.b_connect = connect;
 		}
 		public String getMemory() {
-			return memory;
+			return c_memory;
 		}
 		public void setMemory(String memory) {
-			this.memory = memory;
+			this.c_memory = memory;
 		}
 	}
 	
@@ -210,7 +210,7 @@ public class Server {
 		final static String OFFLINE = "offline";
 		
 		public LinkedList<ClientBean> Clients = new LinkedList<ClientBean>();
-		
+		   
 		//判断客户端是否被管理
 		public synchronized boolean isClientAdded(String newIP)
 		{
@@ -251,6 +251,7 @@ public class Server {
 			
 			return -1;
 		}
+		
 		
 		//添加客户端,添加时设为OFFLINE,不能重复添加
 		public synchronized boolean addClient(String clientIP)
@@ -339,7 +340,7 @@ public class Server {
 			
 			start();
 		}
-		
+		 
 		public void run()
 		{
 			try {
@@ -474,7 +475,7 @@ public class Server {
 						// TODO Auto-generated catch block
 						//e1.printStackTrace();
 						System.out.println("Cannot connect to <" + WebServerAddr + ">! ");
-						System.out.println("  1. The client is added into management ?");
+						System.out.println("  1. The socketserver is added into management ?");
 						System.out.println("  2. The the server ip is right?");
 						System.out.println("  3. The the server is online?");
 					}
