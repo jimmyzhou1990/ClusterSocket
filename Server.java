@@ -1,8 +1,6 @@
 package test.demo3;
 
-import java.beans.DefaultPersistenceDelegate;
 import java.io.BufferedReader;
-
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -11,22 +9,13 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.HashMap;
+
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.Map;
 import java.util.StringTokenizer;
 
-import com.sun.xml.internal.bind.v2.schemagen.xmlschema.List;
-
-import net.sf.json.JSONArray;
-import sun.security.x509.DeltaCRLIndicatorExtension;
-
-import java.util.Map.Entry;
-
-
-
-
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 public class Server {
 	
@@ -179,27 +168,27 @@ public class Server {
 	 
 	public class ClientBean {
 		
-		private String a_ip;
-		private String b_connect;
-		private String c_memory;
+		private String ip;
+		private String connect;
+		private String memory;
 		
 		public String getIp() {
-			return a_ip;
+			return ip;
 		}
 		public void setIp(String ip) {
-			this.a_ip = ip;
+			this.ip = ip;
 		}
 		public String getConnect() {
-			return b_connect;
+			return connect;
 		}
 		public void setConnect(String connect) {
-			this.b_connect = connect;
+			this.connect = connect;
 		}
 		public String getMemory() {
-			return c_memory;
+			return memory;
 		}
 		public void setMemory(String memory) {
-			this.c_memory = memory;
+			this.memory = memory;
 		}
 	}
 	
@@ -322,7 +311,10 @@ public class Server {
 		public String toJsonString() {
 			String jsonString;
 			
-			jsonString = JSONArray.fromObject(Clients).toString();
+			//jsonString = JSONArray.fromObject(Clients).toString();
+			Gson gson = new Gson(); 
+			
+			jsonString = gson.toJson(Clients);
 			
 			return jsonString;
 		}
