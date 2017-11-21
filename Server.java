@@ -109,7 +109,6 @@ public class Server {
 		}
 	}
 	
-	
 	//webserver命令处理类
 	public class WebserverCommand
 	{
@@ -171,6 +170,7 @@ public class Server {
 		private String ip;
 		private String connect;
 		private String memory;
+		private String threads;
 		
 		public String getIp() {
 			return ip;
@@ -189,6 +189,14 @@ public class Server {
 		}
 		public void setMemory(String memory) {
 			this.memory = memory;
+		}
+		
+		public String getThreads() {
+			return threads;
+		}
+		
+		public void setThreads(String threads) {
+			this.threads = threads;
 		}
 	}
 	
@@ -318,6 +326,43 @@ public class Server {
 			
 			return jsonString;
 		}
+		
+		public void parseClientResponse(String clientIP, String response) {
+			
+			String[] standard = {"memory:", "0%", "threads:", "0"};
+			String[] info = {"", "", "", ""};
+			int i = 0;
+			
+			StringTokenizer st = new StringTokenizer(response, " "); 
+			
+	        while(st.hasMoreElements()) {  
+	        	info[i++] = st.nextElement().toString();
+	        	if (i >= 4)    break;  //只接受4个字段
+	        } 
+	        
+	        /*System.out.println(info[0]);
+	        System.out.println(info[1]);
+	        System.out.println(info[2]);
+	        System.out.println(info[3]);
+	        System.out.println(i);*/
+	        
+	        if (i != 4 || !(info[0].equals(standard[0]))  || !(info[2].equals(standard[2]))) return;
+	        
+			int position = getPosition(clientIP);
+			
+			//System.out.println("<"+clientIP+"> position: " + position);
+			
+			if (position >= 0)
+			{
+				ClientBean c = Clients.get(position);
+				
+				c.setConnect("online");
+				c.setMemory(info[1]);
+				c.setThreads(info[3]);
+				
+				Clients.set(position, c);
+			}
+		}
 	}
 	
 	//发送至webserver线程
@@ -392,13 +437,21 @@ public class Server {
 		{
 			String line;
 			try {
-				line = bufferedReader.readLine();
-				while (!line.equals("bye"))
+				
+				while (true)
 				{
-					printWriter.println("continue, Client(" + getName() +")!");
 					line = bufferedReader.readLine();
 					
-					//System.out.println(ClientName + " say: " + line);
+					if (line != null)
+					{
+						System.out.println(ClientName + " say: " + line);
+						clientManager.parseClientResponse(ClientName, line);
+					}
+					else
+					{
+						System.out.println("lose connect to client <" + ClientName + "> !!!");
+						break;
+					}
 				}
 				
 				printWriter.println("bye, Client(" + getName() +")!");
@@ -444,8 +497,18 @@ public class Server {
 								result = bufferedReader.readLine();
 								System.out.println("WebServer say : " + result);
 								
-								command.setCommand(result);
-								command.parse(socket);
+								if (result != null)
+								{
+									command.setCommand(result);
+									command.parse(socket);
+								}
+								else  //连接已断开
+								{
+									System.out.println("lose connect to webserver!");
+							        bufferedReader.close();
+							        socket.close();
+									break;
+								}
 							}  
 							catch (SocketTimeoutException e) {
 								// 连接超时
@@ -463,7 +526,8 @@ public class Server {
 							
 						}
 						
-					} catch (Exception e) {
+					} 
+					catch (Exception e) {
 						// TODO Auto-generated catch block
 						//e1.printStackTrace();
 						System.out.println("Cannot connect to <" + WebServerAddr + ">! ");
