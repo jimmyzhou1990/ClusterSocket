@@ -116,6 +116,7 @@ public class Server {
 		
 		private static final String cmdSET = "set";
 		private static final String cmdADD = "add";
+		private static final String cmdREMOVE = "remove";
 		private static final String cmdQUERYSC = "sc";
 		private static final String objSocketServerName = "ss";
 		private static final String objSocketClientName = "sc";
@@ -150,6 +151,18 @@ public class Server {
 						default:
 							break;
 					}
+					break;
+				
+				case cmdREMOVE:
+					switch (command[1]) 
+					{
+						case objSocketClientName:
+							clientManager.removeClient(command[2]);
+							break;
+
+						default:
+							break;
+					}					
 					break;
 				
 				case cmdQUERYSC:
@@ -483,6 +496,12 @@ public class Server {
 		public void run() {
 			
 			while (true) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
 				
 					try {
 						Socket socket = new Socket(WebServerAddr, 8887);
